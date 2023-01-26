@@ -1,10 +1,13 @@
+#include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <Wire.h>
 #include "time.h"
 
-char *ssid = "reboot";
-char *password = "91265264109220132502751234";
+Preferences preferences;
+
+String ssid = "reboot";
+String password = "91265264109220132502751234";
 const char *ntpServer = "pool.ntp.org";
 long  gmtOffset_sec = -18000; // NYC
 int   daylightOffset_sec = 3600;
@@ -38,7 +41,7 @@ byte table[17] {
   B10011001, B01001001, B01000001, B00011111,
   B00000001, B00001001, B11111111, B00010001,
   B01100011, B01100001, B01110001, B00110001,
-  B01001000
+  B01001001
 };
 // -------------------------------------------
 
@@ -76,7 +79,7 @@ void displayTime() {
       displayDigit = timeinfo.tm_min / 10;
       break;
     case 4:
-      displayDigit =timeinfo.tm_min % 10;
+      displayDigit = timeinfo.tm_min % 10;
       break;
     case 5:
       displayDigit = DISP_BLANK;
@@ -127,42 +130,56 @@ void setup() {
     ledcSetup(SECONDS_LED_PWM_CHANNEL, PWM_FREQUENCY, PWM_RESOLUTION);
     ledcAttachPin(GPIO_SECONDS_LED, SECONDS_LED_PWM_CHANNEL);
 
-    //---Connect ESP32 to Wifi Network---
     setBrightness();
-    writeTodisplayTime(DISP_S);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-    Serial.println("");
-    // Wait for connection
-    bool GPIO_ONBOARD_BLUE_LEDStatus = HIGH;
-    int counter = 0;
-    while (WiFi.status() != WL_CONNECTED && counter < 60) {
-        delay(500);
-        digitalWrite(GPIO_ONBOARD_BLUE_LED, GPIO_ONBOARD_BLUE_LEDStatus);
-        GPIO_ONBOARD_BLUE_LEDStatus = !GPIO_ONBOARD_BLUE_LEDStatus;
-        counter++;
-    }
-    if (WiFi.status() != WL_CONNECTED) {
-        writeTodisplayTime(DISP_E);
-        for(int i=0; i<10; i++) {
-          digitalWrite(GPIO_ONBOARD_BLUE_LED, HIGH);
-          delay(100);         
-          digitalWrite(GPIO_ONBOARD_BLUE_LED, LOW);
-          delay(100);         
-        }
-        isSetupMode = true;
-        WiFi.begin("reboot", password); 
+
+    // read preferences from memory
+//    preferences.begin("credentials", false);
+//    ssid = preferences.getString("ssid", ""); 
+//    password = preferences.getString("password", "");
+    gmtOffset_sec = preferences.getLong("gmtOffset", -18000); // NYC
+    daylightOffset_sec = preferences.getInt("daylightOffset", 3600);
+
+    if (ssid == "" || password == ""){
+      Serial.println("No values saved for ssid or password");
+      isSetupMode = true;
     } else {
-      digitalWrite(GPIO_ONBOARD_BLUE_LED, LOW);
-      //displayTime WiFi info to Serial Monitor on successful connection
+      //---Connect ESP32 to Wifi Network---
+      writeTodisplayTime(DISP_S);
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(ssid.c_str(), password.c_str());
       Serial.println("");
-      Serial.print("Connected to ");
-      Serial.println(ssid);
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-      // ****
-      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-      printLocalTime();
+      // Wait for connection
+      bool GPIO_ONBOARD_BLUE_LEDStatus = HIGH;
+      int counter = 0;
+      while (WiFi.status() != WL_CONNECTED && counter < 60) {
+          delay(500);
+          digitalWrite(GPIO_ONBOARD_BLUE_LED, GPIO_ONBOARD_BLUE_LEDStatus);
+          GPIO_ONBOARD_BLUE_LEDStatus = !GPIO_ONBOARD_BLUE_LEDStatus;
+          counter++;
+      }
+
+      if (WiFi.status() != WL_CONNECTED) {
+          writeTodisplayTime(DISP_E);
+          for(int i=0; i<10; i++) {
+            digitalWrite(GPIO_ONBOARD_BLUE_LED, HIGH);
+            delay(100);         
+            digitalWrite(GPIO_ONBOARD_BLUE_LED, LOW);
+            delay(100);         
+          }
+          isSetupMode = true;
+          WiFi.begin("reboot", password.c_str()); 
+      } else {
+        digitalWrite(GPIO_ONBOARD_BLUE_LED, LOW);
+        //displayTime WiFi info to Serial Monitor on successful connection
+        Serial.println("");
+        Serial.print("Connected to ");
+        Serial.println(ssid);
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        // ****
+        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+        printLocalTime();
+      }
     }
 }
 
