@@ -9,11 +9,17 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = -18000; // NYC
 const int   daylightOffset_sec = 3600;
 
-int latchPin = 5;
-int clockPin = 18;
-int dataPin = 23;
-int onboardLED = 2;
-int secondsLED = 3;
+#define latchPin 5
+#define clockPin 18
+#define dataPin 23
+#define onboardLED 2
+#define secondsLED 3
+#define pwmFreq 5000
+#define pwmResolution 8
+#define secondsLEDPWMChannel 0
+#define LDRPin 34
+
+
 
 byte table[10] {B00000011, B10011111, B00100101, B00001101, B10011001, B01001001, B01000001, B00011111, B00000001, B00001001};
 int flashcount = 1;
@@ -72,10 +78,12 @@ void setup() {
     Serial.begin(115200);
 
     pinMode(clockPin, OUTPUT);
+    //pinMode(LDRPin, INPUT);
     pinMode(latchPin, OUTPUT);
     pinMode(dataPin, OUTPUT);
     pinMode(onboardLED, OUTPUT);
-    pinMode(secondsLED, OUTPUT);
+    ledcSetup(secondsLEDPWMChannel, pwmFreq, pwmResolution);
+    ledcAttachPin(secondsLED, secondsLEDPWMChannel);
 
     //---Connect ESP32 to Wifi Network---
     WiFi.mode(WIFI_STA);
@@ -89,11 +97,11 @@ void setup() {
         digitalWrite(onboardLED, onboardLEDStatus);
         onboardLEDStatus = !onboardLEDStatus;
         counter++;
-        Serial.println(counter);
     }
     if (WiFi.status() != WL_CONNECTED) {
         digitalWrite(onboardLED, HIGH);
     } else {
+      digitalWrite(onboardLED, LOW);
       //Display WiFi info to Serial Monitor on successful connection
       Serial.println("");
       Serial.print("Connected to ");
@@ -106,12 +114,28 @@ void setup() {
     printLocalTime();
 }
 
+int brightness = 255;
+
+void setBrightness() {
+  if (analogRead(LDRPin) < 1200) {
+    brightness = 10;
+  } else {
+    brightness = 255;
+  }
+}
+
 void loop() {
-    digitalWrite(secondsLED, LOW);
+    //digitalWrite(secondsLED, LOW);
+    setBrightness();
+    ledcWrite(secondsLEDPWMChannel, 255 - brightness);
+    Serial.println(analogRead(LDRPin));
     Display();
     delay(800);
     screenOff();
     delay(200);
-    digitalWrite(secondsLED, HIGH);
+    //digitalWrite(secondsLED, HIGH);
+    ledcWrite(secondsLEDPWMChannel, 256);
+    Serial.println(analogRead(LDRPin));
     delay(1000);
+    Serial.println(brightness);
 }
